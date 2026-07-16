@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     
-    <!-- BYE BYE HTML2PDF. HELLO RAW LIBRARIES -->
+    <!-- LIBRARIES -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     
@@ -134,7 +134,9 @@
         .web-theme-switcher button { background: transparent; color: var(--text-secondary); border: none; padding: 6px 14px; font-size: 11px; font-family: 'JetBrains Mono', monospace; cursor: pointer; outline: none; }
         .web-theme-switcher button.active { background-color: var(--accent-blue); color: #FFFFFF; font-weight: 600; }
 
-        /* MOBILE LIVE VIEW STYLES */
+        /* =========================================
+           MOBILE LIVE VIEW STYLES
+           ========================================= */
         @media screen and (max-width: 768px) {
             body { padding: 15px; }
             .page { padding: 25px; border-radius: var(--radius-md); }
@@ -145,6 +147,18 @@
             .grid-2 { grid-template-columns: 1fr; gap: var(--space-4); }
             h1 { font-size: 32px; }
             .footer-wrapper { flex-direction: column; text-align: center; justify-content: center; }
+        }
+
+        /* =========================================
+           PDF TEXT GRADIENT BUG FIX 
+           (Forces solid color only during PDF generation)
+           ========================================= */
+        .pdf-render h1 {
+            background: transparent !important;
+            -webkit-background-clip: border-box !important;
+            background-clip: border-box !important;
+            -webkit-text-fill-color: var(--text-primary) !important;
+            color: var(--text-primary) !important;
         }
     </style>
 </head>
@@ -309,7 +323,6 @@
 
         window.addEventListener('DOMContentLoaded', () => {
             setWebTheme(localStorage.getItem('website-theme') || 'auto');
-            
             const qrImg = document.getElementById('qr-img');
             if (qrImg) {
                 fetch(qrImg.src).then(res => res.blob()).then(blob => {
@@ -321,10 +334,9 @@
         });
 
         // ==========================================
-        // KHUD KA CUSTOM PDF ENGINE (Bye-bye html2pdf.js)
+        // KHUD KA CUSTOM PDF ENGINE
         // ==========================================
         async function generatePDF() {
-            // Radio se theme select karo
             const themeRadios = document.getElementsByName('pdf-theme');
             let selectedPdfTheme = 'dark';
             for (let i = 0; i < themeRadios.length; i++) {
@@ -337,35 +349,32 @@
             btnText.innerText = "Processing...";
 
             try {
-                // 1. RAW jsPDF engine start karo (A4 ratio lock)
                 const { jsPDF } = window.jspdf;
                 const pdf = new jsPDF({ orientation: 'portrait', unit: 'px', format: [800, 1131] });
 
-                // 2. Ghost Container (Phone ke display se completely alag)
                 const ghostContainer = document.createElement('div');
                 ghostContainer.style.position = 'absolute';
                 ghostContainer.style.top = '0';
-                ghostContainer.style.left = '-9999px'; // User ko nahi dikhega
-                ghostContainer.style.width = '800px';  // FORCE DESKTOP WIDTH
+                ghostContainer.style.left = '-9999px'; 
+                ghostContainer.style.width = '800px';  
                 
-                // Theme apply
                 if (selectedPdfTheme === 'light') ghostContainer.classList.add('light-mode');
                 document.body.appendChild(ghostContainer);
 
-                // 3. Auto-pagination ko dhakka maaro, hum strictly har `.page` class ko alag uthayenge
                 const originalPages = document.querySelectorAll('#resume-wrapper .page');
                 
                 for (let i = 0; i < originalPages.length; i++) {
                     const clone = originalPages[i].cloneNode(true);
 
-                    // 4. Download buttons aur switcher ko permanent delete kar do clone se
+                    // GRADIENT BUG FIX APPLIED HERE
+                    clone.classList.add('pdf-render');
+
                     const dlCard = clone.querySelector('.download-card');
                     if (dlCard) dlCard.remove();
                     
                     const themeSwitcher = clone.querySelector('.web-theme-switcher');
                     if (themeSwitcher) themeSwitcher.remove();
 
-                    // 5. Explicitly force A4 layout directly on the clone via JS
                     clone.style.width = '800px';
                     clone.style.height = '1131px';
                     clone.style.margin = '0';
@@ -378,10 +387,8 @@
                     ghostContainer.innerHTML = ''; 
                     ghostContainer.appendChild(clone);
 
-                    // Thoda ruko taaki CSS DOM me register ho jaye
                     await new Promise(r => setTimeout(r, 200));
 
-                    // 6. html2canvas se HD screenshot lo
                     const canvas = await html2canvas(clone, {
                         scale: 2, 
                         useCORS: true,
@@ -392,15 +399,12 @@
 
                     const imgData = canvas.toDataURL('image/jpeg', 1.0);
 
-                    // 7. Image ko PDF me paste karo
                     if (i > 0) pdf.addPage([800, 1131], 'portrait');
                     pdf.addImage(imgData, 'JPEG', 0, 0, 800, 1131);
                 }
 
-                // File Download
                 pdf.save(`Vaibhav_Tiwari_Resume_${selectedPdfTheme.charAt(0).toUpperCase() + selectedPdfTheme.slice(1)}.pdf`);
                 
-                // Kachra saaf
                 document.body.removeChild(ghostContainer);
 
             } catch (error) {
